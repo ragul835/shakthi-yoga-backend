@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+*.db
+*.sqlite
+*.sqlite-journal
+prisma/*.db
+prisma/*.sqlite
+*.log
+npm-debug.log*
+yarn-error.log*
+.DS_Store

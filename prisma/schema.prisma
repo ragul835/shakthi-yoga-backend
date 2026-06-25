@@ -1,0 +1,277 @@
+// ZenYoga Database Schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  INSTRUCTOR
+  STUDENT
+}
+
+enum ExperienceLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  ALL
+}
+
+enum ClassType {
+  ONE_ON_ONE
+  GROUP
+}
+
+enum AgeGroup {
+  KIDS
+  ADULTS
+}
+
+enum TestimonialSource {
+  SITE
+  GOOGLE
+}
+
+enum TestimonialStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ClassStatus {
+  ACTIVE
+  INACTIVE
+  FULL
+  UPCOMING
+}
+
+enum EnrollmentStatus {
+  PENDING
+  APPROVED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentType {
+  ONLINE
+  MANUAL
+}
+
+model User {
+  id              String          @id @default(uuid())
+  name            String
+  email           String          @unique
+  passwordHash    String          @map("password_hash")
+  phone                 String?
+  dob                   DateTime?
+  experienceLevel       ExperienceLevel @default(BEGINNER) @map("experience_level")
+  practiceFrequency     String?         @map("practice_frequency")
+  emergencyContactName  String?         @map("emergency_contact_name")
+  emergencyContactPhone String?         @map("emergency_contact_phone")
+  purposeOfJoining      String[]        @map("purpose_of_joining")
+  physicalHealth        String?         @map("physical_health")
+  mentalHealth          String?         @map("mental_health")
+  digitalMediaWaiver    Boolean         @default(false) @map("digital_media_waiver")
+  liabilityWaiver       Boolean         @default(false) @map("liability_waiver")
+  role                  Role            @default(STUDENT)
+  profilePhotoUrl       String?         @map("profile_photo_url")
+  healthNotes           String?         @map("health_notes")
+  emailVerified         Boolean         @default(false) @map("email_verified")
+  isActive              Boolean         @default(true) @map("is_active")
+  refreshToken          String?         @map("refresh_token")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+
+  instructorProfile InstructorProfile?
+  enrollments       Enrollment[]
+  payments          Payment[]
+  auditLogs         AuditLog[]
+  attendanceMarks   Attendance[]       @relation("MarkedBy")
+  contactReads      ContactMessage[]   @relation("ReadBy")
+  contentUpdates    SiteContent[]      @relation("UpdatedBy")
+  testimonials      Testimonial[]
+
+  @@map("users")
+}
+
+model InstructorProfile {
+  id             String  @id @default(uuid())
+  userId         String  @unique @map("user_id")
+  bio            String?
+  specialization String?
+  qualifications String?
+  yearsExperience Int?   @map("years_experience")
+  photoUrl       String? @map("photo_url")
+  isActive       Boolean @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classes Class[]
+
+  @@map("instructor_profiles")
+}
+
+model Class {
+  id                String          @id @default(uuid())
+  name              String
+  description       String?
+  shortDescription  String?         @map("short_description")
+  type              ClassType
+  instructorId      String          @map("instructor_id")
+  meetingLink       String?         @map("meeting_link")
+  priceUsd          Decimal         @map("price_usd") @db.Decimal(10, 2)
+  maxCapacity       Int             @map("max_capacity")
+  currentEnrollment Int             @default(0) @map("current_enrollment")
+  experienceLevel   ExperienceLevel @default(ALL) @map("experience_level")
+  ageGroup          AgeGroup        @default(ADULTS) @map("age_group")
+  scheduleDay       String          @map("schedule_day")
+  scheduleTime      String          @map("schedule_time")
+  durationMinutes   Int             @map("duration_minutes")
+  prerequisites     String?
+  status            ClassStatus     @default(ACTIVE)
+  imageUrl          String?         @map("image_url")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  instructor  InstructorProfile @relation(fields: [instructorId], references: [id])
+  enrollments Enrollment[]
+  attendances Attendance[]
+
+  @@map("classes")
+}
+
+model Enrollment {
+  id          String           @id @default(uuid())
+  userId      String           @map("user_id")
+  classId     String           @map("class_id")
+  status      EnrollmentStatus @default(PENDING)
+  meetingLink String?          @map("meeting_link")
+  adminNotes  String?          @map("admin_notes")
+  enrolledAt  DateTime         @default(now()) @map("enrolled_at")
+  approvedAt  DateTime?        @map("approved_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class       Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  payment     Payment?
+  attendances Attendance[]
+
+  @@unique([userId, classId])
+  @@map("enrollments")
+}
+
+model Payment {
+  id                String        @id @default(uuid())
+  userId            String        @map("user_id")
+  enrollmentId      String        @unique @map("enrollment_id")
+  amountUsd         Decimal       @map("amount_usd") @db.Decimal(10, 2)
+  currency          String        @default("USD")
+  paymentProvider   String?       @map("payment_provider")
+  providerPaymentId String?       @map("provider_payment_id")
+  status            PaymentStatus @default(PENDING)
+  receiptUrl        String?       @map("receipt_url")
+  paymentType       PaymentType   @default(MANUAL) @map("payment_type")
+  adminNotes        String?       @map("admin_notes")
+  paidAt            DateTime?     @map("paid_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Attendance {
+  id           String   @id @default(uuid())
+  enrollmentId String   @map("enrollment_id")
+  classId      String   @map("class_id")
+  sessionDate  DateTime @map("session_date")
+  attended     Boolean  @default(false)
+  makeupUsed   Boolean  @default(false) @map("makeup_used")
+  markedById   String?  @map("marked_by")
+  markedAt     DateTime @default(now()) @map("marked_at")
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  class      Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  markedBy   User?      @relation("MarkedBy", fields: [markedById], references: [id])
+
+  @@unique([enrollmentId, sessionDate])
+  @@map("attendances")
+}
+
+model Testimonial {
+  id             String            @id @default(uuid())
+  studentName    String            @map("student_name")
+  content        String            @db.Text
+  rating         Int               @default(5)
+  isActive       Boolean           @default(true) @map("is_active")
+  displayOrder   Int               @default(0) @map("display_order")
+  source         TestimonialSource @default(SITE)
+  status         TestimonialStatus @default(PENDING)
+  userId         String?           @map("user_id")
+  googleReviewId String?           @map("google_review_id")
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("testimonials")
+}
+
+model SiteContent {
+  id          String   @id @default(uuid())
+  pageKey     String   @map("page_key")
+  sectionKey  String   @map("section_key")
+  contentJson String   @map("content_json") @db.Text
+  updatedById String?  @map("updated_by")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  updatedBy User? @relation("UpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([pageKey, sectionKey])
+  @@map("site_contents")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?  @map("user_id")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  detailsJson String?  @map("details_json") @db.Text
+  ipAddress   String?  @map("ip_address")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model ContactMessage {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  subject   String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  readById  String?  @map("read_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  readBy User? @relation("ReadBy", fields: [readById], references: [id])
+
+  @@map("contact_messages")
+}
+
