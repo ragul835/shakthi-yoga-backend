@@ -28,4 +28,4 @@ services:
       - key: JWT_REFRESH_EXPIRATION
         value: 7d
       - key: FRONTEND_URL
-        value: https://shakthi-yoga.onrender.com
+        value: https://shakthi-yoga-frontend.onrender.com
