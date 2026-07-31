@@ -1,8 +1,9 @@
 import { Injectable, ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
-import { RegisterDto, LoginDto } from './dto/auth.dto';
+import { RegisterDto, LoginDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
 import { Role } from '@prisma/client';
 
 @Injectable()
@@ -46,6 +47,7 @@ export class AuthService {
         id: true,
         name: true,
         email: true,
+        phone: true,
         role: true,
         createdAt: true,
       },
@@ -90,6 +92,7 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role,
         profilePhotoUrl: user.profilePhotoUrl,
       },
@@ -153,6 +156,218 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+    });
+    
+    if (!user) {
+      // Return success even if user not found to prevent email enumeration
+      return { message: 'If an account exists, a reset link has been sent' };
+    }
+
+    // Snippet of the current password hash, e.g., last 10 chars
+    const hashSnippet = user.passwordHash.slice(-10);
+    const payload = { sub: user.id, hash: hashSnippet };
+    
+    // Token expires in 15m
+    const resetToken = await this.jwtService.signAsync(payload, { expiresIn: '15m', secret: process.env.JWT_RESET_SECRET || 'fallback_reset_secret' } as any);
+    
+    const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',');
+    const frontendUrl = frontendUrls[0].trim();
+    const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+    
+    await this.sendResetEmail(user.email, resetLink);
+    
+    return { message: 'If an account exists, a reset link has been sent' };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    let payload;
+    try {
+      payload = await this.jwtService.verifyAsync(dto.token, { secret: process.env.JWT_RESET_SECRET || 'fallback_reset_secret' } as any);
+    } catch (e) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+    
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+    
+    if (!user) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+    
+    const currentHashSnippet = user.passwordHash.slice(-10);
+    if (currentHashSnippet !== payload.hash) {
+      throw new BadRequestException('Token has already been used');
+    }
+    
+    const newPasswordHash = await bcrypt.hash(dto.newPassword, 12);
+    
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: newPasswordHash },
+    });
+    
+    return { message: 'Password has been reset successfully' };
+  }
+
+  private async sendResetEmail(to: string, resetLink: string) {
+    let transporter;
+    
+    if (process.env.SMTP_HOST) {
+      transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587', 10),
+        secure: process.env.SMTP_PORT === '465',
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      });
+    } else {
+      // Fallback to ethereal for dev
+      const testAccount = await nodemailer.createTestAccount();
+      transporter = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass,
+        },
+      });
+    }
+    
+    const fromAddress = process.env.SMTP_USER || 'noreply@shakthiyoga.com';
+    
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Reset Your Password</title>
+        <style>
+          body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: #FAF9F6;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+          }
+          .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid #EAE7DF;
+          }
+          .header {
+            background-color: #557A5B;
+            padding: 40px 20px;
+            text-align: center;
+            color: #ffffff;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            font-family: Georgia, serif;
+          }
+          .content {
+            padding: 40px;
+            color: #2C2C2C;
+            line-height: 1.6;
+          }
+          .content p {
+            font-size: 16px;
+            margin-bottom: 24px;
+            color: #5A544C;
+          }
+          .btn-container {
+            text-align: center;
+            margin: 35px 0;
+          }
+          .btn {
+            display: inline-block;
+            background-color: #557A5B;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 14px 32px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+          }
+          .btn:hover {
+            background-color: #48684d;
+          }
+          .footer {
+            background-color: #F4F3ED;
+            padding: 24px;
+            text-align: center;
+            font-size: 13px;
+            color: #8F887C;
+            border-top: 1px solid #EAE7DF;
+          }
+          .link-fallback {
+            font-size: 14px;
+            color: #8F887C;
+            word-break: break-all;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px dashed #EAE7DF;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>SHAKTHI YOGA</h1>
+          </div>
+          <div class="content">
+            <h2 style="color: #2C2C2C; font-size: 22px; margin-top: 0; font-family: Georgia, serif;">Password Reset Request</h2>
+            <p>We received a request to reset your password for your Shakthi Yoga account. Don't worry, we've got you covered!</p>
+            <p>Click the button below to choose a new password. This link is valid for the next <strong>15 minutes</strong>.</p>
+            
+            <div class="btn-container">
+              <a href="${resetLink}" class="btn" style="color: #ffffff;">Reset My Password</a>
+            </div>
+            
+            <p style="margin-bottom: 0;">If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+            
+            <div class="link-fallback">
+              Or copy and paste this link into your browser:<br>
+              <a href="${resetLink}" style="color: #557A5B;">${resetLink}</a>
+            </div>
+          </div>
+          <div class="footer">
+            <p style="margin: 0;">&copy; ${new Date().getFullYear()} Shakthi Yoga. All rights reserved.</p>
+            <p style="margin: 5px 0 0 0;">Your journey to wellness begins with a single breath.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    const info = await transporter.sendMail({
+      from: `"Shakthi Yoga" <${fromAddress}>`,
+      to,
+      subject: 'Reset Your Shakthi Yoga Password',
+      text: `Please click this link to reset your password: ${resetLink}. The link expires in 15 minutes.`,
+      html: emailHtml,
+    });
+    
+    if (!process.env.SMTP_HOST) {
+      console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+    }
   }
 
   private async generateTokens(userId: string, email: string, role: string) {

@@ -41,4 +41,16 @@ export class AuthController {
   async getProfile(@CurrentUser('id') userId: string) {
     return this.authService.getProfile(userId);
   }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() dto: import('./dto/auth.dto').ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() dto: import('./dto/auth.dto').ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
 }
