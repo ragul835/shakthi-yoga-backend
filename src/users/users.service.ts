@@ -58,15 +58,41 @@ export class UsersService {
         role: true,
         profilePhotoUrl: true,
         healthNotes: true,
+        practiceFrequency: true,
+        emergencyContactName: true,
+        emergencyContactPhone: true,
+        purposeOfJoining: true,
+        physicalHealth: true,
+        mentalHealth: true,
+        digitalMediaWaiver: true,
+        liabilityWaiver: true,
         isActive: true,
         emailVerified: true,
         createdAt: true,
         updatedAt: true,
         instructorProfile: true,
         enrollments: {
-          include: { class: { select: { name: true, type: true } } },
+          include: { 
+            class: { select: { name: true, type: true } },
+            attendances: {
+              orderBy: { sessionDate: 'desc' },
+              take: 5
+            }
+          },
           orderBy: { enrolledAt: 'desc' },
           take: 10,
+        },
+        userPasses: {
+          include: { passOption: true },
+          orderBy: { createdAt: 'desc' }
+        },
+        payments: {
+          include: {
+            enrollment: { include: { class: { select: { name: true } } } },
+            userPass: { include: { passOption: { select: { name: true } } } }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10
         },
         _count: {
           select: { enrollments: true, payments: true },
