@@ -167,4 +167,10 @@ export class ContactService {
       data: { isRead: true, readById },
     });
   }
+
+  async deleteMessage(id: string) {
+    const msg = await this.prisma.contactMessage.findUnique({ where: { id } });
+    if (!msg) throw new NotFoundException('Message not found');
+    return this.prisma.contactMessage.delete({ where: { id } });
+  }
 }

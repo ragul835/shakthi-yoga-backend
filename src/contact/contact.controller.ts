@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { ContactService } from './contact.service';
 import { CreateContactDto } from './dto/contact.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -28,5 +28,12 @@ export class ContactController {
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   markAsRead(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.contactService.markAsRead(id, userId);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  deleteMessage(@Param('id') id: string) {
+    return this.contactService.deleteMessage(id);
   }
 }

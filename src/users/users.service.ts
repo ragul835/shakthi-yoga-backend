@@ -123,6 +123,15 @@ export class UsersService {
     });
   }
 
+  async deleteUser(id: string) {
+    await this.findOne(id);
+    return this.prisma.user.update({
+      where: { id },
+      data: { isActive: false },
+      select: { id: true, name: true, isActive: true },
+    });
+  }
+
   async getDashboardStats(userId: string) {
     const [totalRegistered, totalAttended, upcoming] = await Promise.all([
       this.prisma.enrollment.count({ where: { userId } }),
