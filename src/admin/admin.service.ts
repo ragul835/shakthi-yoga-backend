@@ -29,6 +29,9 @@ export class AdminService {
       unreadContactMessages,
       totalTestimonials,
       pendingTestimonials,
+      totalRevenueResult,
+      monthlyRevenueResult,
+      successfulPayments,
     ] = await Promise.all([
       this.prisma.user.count({ where: { role: 'STUDENT', isActive: true } }),
       this.prisma.user.count({ where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } } }),
@@ -47,6 +50,21 @@ export class AdminService {
       this.prisma.contactMessage.count({ where: { isRead: false } }),
       this.prisma.testimonial.count(),
       this.prisma.testimonial.count({ where: { status: 'PENDING' } }),
+      this.prisma.payment.aggregate({
+        where: { status: 'SUCCEEDED' },
+        _sum: { amountUsd: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          status: 'SUCCEEDED',
+          OR: [
+            { paidAt: { gte: monthStart } },
+            { paidAt: null, createdAt: { gte: monthStart } },
+          ],
+        },
+        _sum: { amountUsd: true },
+      }),
+      this.prisma.payment.count({ where: { status: 'SUCCEEDED' } }),
     ]);
 
     // Popular classes
@@ -100,6 +118,12 @@ export class AdminService {
       unreadContactMessages,
       totalTestimonials,
       pendingTestimonials,
+      // Revenue includes settled payments only. Refunded, failed, and pending
+      // payments are intentionally excluded from the studio's earned total.
+      totalRevenueUsd: Number(totalRevenueResult._sum.amountUsd ?? 0),
+      monthlyRevenueUsd: Number(monthlyRevenueResult._sum.amountUsd ?? 0),
+      successfulPayments,
+      revenueUpdatedAt: now.toISOString(),
       // Lists
       popularClasses,
       recentEnrollments,

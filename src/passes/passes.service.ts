@@ -79,6 +79,7 @@ export class PassesService {
           userPassId: pass.id,
           amountUsd: passOption.priceUsd,
           status: 'SUCCEEDED',
+          paidAt: new Date(),
           paymentType: 'ONLINE',
           adminNotes: 'Simulated purchase for Class Pass',
         },

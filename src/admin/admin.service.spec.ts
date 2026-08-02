@@ -51,3 +51,36 @@ describe('AdminService CMS', () => {
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('AdminService dashboard revenue', () => {
+  it('reports settled revenue and excludes other payment states through its query filters', async () => {
+    const count = jest.fn().mockResolvedValue(0);
+    const findMany = jest.fn().mockResolvedValue([]);
+    const aggregate = jest.fn()
+      .mockResolvedValueOnce({ _sum: { amountUsd: 420.5 } })
+      .mockResolvedValueOnce({ _sum: { amountUsd: 280 } });
+    const prisma = {
+      user: { count },
+      class: { count, findMany },
+      instructorProfile: { count },
+      enrollment: { count, findMany },
+      contactMessage: { count, findMany },
+      testimonial: { count },
+      payment: { aggregate, count: jest.fn().mockResolvedValue(3) },
+    } as any;
+
+    const result = await new AdminService(prisma).getDashboardStats();
+
+    expect(result).toEqual(expect.objectContaining({
+      totalRevenueUsd: 420.5,
+      monthlyRevenueUsd: 280,
+      successfulPayments: 3,
+    }));
+    expect(aggregate).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: { status: 'SUCCEEDED' },
+    }));
+    expect(aggregate).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: expect.objectContaining({ status: 'SUCCEEDED' }),
+    }));
+  });
+});
