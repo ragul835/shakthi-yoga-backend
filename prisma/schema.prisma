@@ -50,6 +50,27 @@ enum ClassStatus {
   UPCOMING
 }
 
+enum NewsletterStatus {
+  PENDING
+  ACTIVE
+  UNSUBSCRIBED
+}
+
+model NewsletterSubscriber {
+  id             String           @id @default(uuid())
+  email          String           @unique
+  status         NewsletterStatus @default(PENDING)
+  confirmToken   String?          @unique @map("confirm_token")
+  unsubscribeToken String         @unique @map("unsubscribe_token")
+  consentedAt    DateTime         @default(now()) @map("consented_at")
+  confirmedAt    DateTime?        @map("confirmed_at")
+  unsubscribedAt DateTime?        @map("unsubscribed_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@map("newsletter_subscribers")
+}
+
 enum EnrollmentStatus {
   PENDING
   APPROVED

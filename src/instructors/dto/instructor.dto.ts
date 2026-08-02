@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, IsBoolean, Min, IsEmail, MinLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, IsBoolean, Min, IsEmail, MinLength, IsUrl } from 'class-validator';
 
 export class CreateInstructorDto {
   @IsOptional()
@@ -37,7 +37,7 @@ export class CreateInstructorDto {
   yearsExperience?: number;
 
   @IsOptional()
-  @IsString()
+  @IsUrl({ protocols: ['https'], require_protocol: true })
   photoUrl?: string;
 }
 
@@ -65,7 +65,7 @@ export class UpdateInstructorDto {
   yearsExperience?: number;
 
   @IsOptional()
-  @IsString()
+  @IsUrl({ protocols: ['https'], require_protocol: true })
   photoUrl?: string;
 
   @IsOptional()

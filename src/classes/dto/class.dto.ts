@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUrl, Min } from 'class-validator';
 import { ClassType, ClassStatus, ExperienceLevel, AgeGroup } from '@prisma/client';
 
 export class CreateClassDto {
@@ -54,7 +54,7 @@ export class CreateClassDto {
   prerequisites?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUrl({ protocols: ['https'], require_protocol: true })
   imageUrl?: string;
 
   @IsOptional()
@@ -123,7 +123,7 @@ export class UpdateClassDto {
   status?: ClassStatus;
 
   @IsOptional()
-  @IsString()
+  @IsUrl({ protocols: ['https'], require_protocol: true })
   imageUrl?: string;
 
   @IsOptional()

@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SITE_CONTENT_FIELDS, SITE_PAGE_KEYS, SitePageKey, UpdateSiteContentDto } from './dto/site-content.dto';
 
 @Injectable()
 export class AdminService {
@@ -104,5 +105,101 @@ export class AdminService {
       recentEnrollments,
       recentMessages,
     };
+  }
+
+  async getSiteContent(pageKey: string) {
+    this.assertPageKey(pageKey);
+    const record = await this.prisma.siteContent.findUnique({
+      where: { pageKey_sectionKey: { pageKey, sectionKey: 'main' } },
+      select: { pageKey: true, contentJson: true, updatedAt: true },
+    });
+
+    if (!record) throw new NotFoundException('No published content exists for this page');
+    const parsed = JSON.parse(record.contentJson) as { content?: unknown };
+    return {
+      pageKey: record.pageKey,
+      content: typeof parsed.content === 'string' ? parsed.content : '',
+      updatedAt: record.updatedAt,
+    };
+  }
+
+  async getPublicSiteContent(pageKey: string) {
+    this.assertPageKey(pageKey);
+    const record = await this.prisma.siteContent.findUnique({
+      where: { pageKey_sectionKey: { pageKey, sectionKey: 'main' } },
+      select: { pageKey: true, contentJson: true, updatedAt: true },
+    });
+
+    if (!record) return { pageKey, content: null, updatedAt: null };
+    const parsed = JSON.parse(record.contentJson) as { content?: unknown };
+    return {
+      pageKey: record.pageKey,
+      content: typeof parsed.content === 'string' ? parsed.content : null,
+      updatedAt: record.updatedAt,
+    };
+  }
+
+  async updateSiteContent(pageKey: string, dto: UpdateSiteContentDto, userId: string) {
+    this.assertPageKey(pageKey);
+    if (dto.pageKey !== pageKey) throw new BadRequestException('Page key does not match the request URL');
+
+    this.validateStructuredContent(pageKey as SitePageKey, dto.content);
+
+    const contentJson = JSON.stringify({ content: dto.content.trim() });
+    const record = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.siteContent.upsert({
+        where: { pageKey_sectionKey: { pageKey, sectionKey: 'main' } },
+        create: { pageKey, sectionKey: 'main', contentJson, updatedById: userId },
+        update: { contentJson, updatedById: userId },
+        select: { id: true, pageKey: true, updatedAt: true },
+      });
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: 'UPDATE_SITE_CONTENT',
+          entityType: 'SiteContent',
+          entityId: saved.id,
+          detailsJson: JSON.stringify({ pageKey }),
+        },
+      });
+      return saved;
+    });
+
+    return { ...record, content: dto.content.trim() };
+  }
+
+  private assertPageKey(pageKey: string) {
+    if (!SITE_PAGE_KEYS.includes(pageKey as (typeof SITE_PAGE_KEYS)[number])) {
+      throw new BadRequestException('Unsupported site page');
+    }
+  }
+
+  private validateStructuredContent(pageKey: SitePageKey, content: string) {
+    let fields: unknown;
+    try {
+      fields = JSON.parse(content);
+    } catch {
+      throw new BadRequestException('Content must use the structured CMS format');
+    }
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields)) {
+      throw new BadRequestException('Content must be an object');
+    }
+
+    const allowedFields = new Set(SITE_CONTENT_FIELDS[pageKey]);
+    for (const [key, value] of Object.entries(fields)) {
+      if (!allowedFields.has(key)) throw new BadRequestException(`Unsupported content field: ${key}`);
+      if (typeof value !== 'string' || !value.trim() || value.length > 2_000) {
+        throw new BadRequestException(`Invalid content field: ${key}`);
+      }
+      if (key.endsWith('Url')) {
+        if (/imageUrl$/i.test(key) && value.startsWith('/')) continue;
+        let url: URL;
+        try { url = new URL(value); } catch { throw new BadRequestException(`Invalid URL field: ${key}`); }
+        if (url.protocol !== 'https:') throw new BadRequestException(`${key} must use HTTPS`);
+      }
+      if (key === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        throw new BadRequestException('Invalid studio email address');
+      }
+    }
   }
 }

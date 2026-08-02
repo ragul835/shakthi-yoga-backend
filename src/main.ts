@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { winstonConfig } from './logger/winston.config';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -10,6 +11,7 @@ async function bootstrap() {
 
   // Global prefix
   app.setGlobalPrefix('api');
+  app.use(helmet());
 
   // CORS — supports comma-separated FRONTEND_URL values
   const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
