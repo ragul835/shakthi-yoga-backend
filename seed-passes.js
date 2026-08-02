@@ -2,23 +2,28 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-  // Clear existing passes to keep it clean
-  await prisma.passOption.deleteMany({});
-  
-  await prisma.passOption.create({
-    data: {
+  await prisma.passOption.upsert({
+    where: { name: '3-Class Pass' },
+    update: {
+      description: 'Valid for any 3 classes. No expiration date!',
+      priceUsd: 45,
+      totalClasses: 3,
+      validityDays: null,
+      isActive: true,
+    },
+    create: {
       name: '3-Class Pass',
       description: 'Valid for any 3 classes. No expiration date!',
-      priceUsd: 45.00,
+      priceUsd: 45,
       totalClasses: 3,
-      validityDays: null, // No expiry
-    }
+      validityDays: null,
+    },
   });
   console.log('Seeded 3-Class Pass.');
 }
 
 main()
-  .catch(e => {
+  .catch((e) => {
     console.error(e);
     process.exit(1);
   })

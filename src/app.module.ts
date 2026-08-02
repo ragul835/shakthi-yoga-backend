@@ -15,7 +15,22 @@ import { LoggingMiddleware } from './middleware/logging.middleware';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: (config: Record<string, unknown>) => {
+        if (config.NODE_ENV === 'production') {
+          const jwtSecret = String(config.JWT_SECRET || '');
+          if (jwtSecret.length < 32) {
+            throw new Error('JWT_SECRET must contain at least 32 characters');
+          }
+          const frontendUrl = String(config.FRONTEND_URL || '');
+          if (!frontendUrl.startsWith('https://')) {
+            throw new Error('FRONTEND_URL must use HTTPS in production');
+          }
+        }
+        return config;
+      },
+    }),
     PrismaModule,
     AuthModule,
     UsersModule,

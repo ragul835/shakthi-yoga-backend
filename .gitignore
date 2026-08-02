@@ -7,6 +7,7 @@ dist/
 prisma/*.db
 prisma/*.sqlite
 *.log
+logs/
 npm-debug.log*
 yarn-error.log*
 .DS_Store

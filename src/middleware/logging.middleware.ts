@@ -16,7 +16,7 @@ export class LoggingMiddleware implements NestMiddleware {
       const duration = Date.now() - start;
 
       const logMessage = `${method} ${originalUrl} ${statusCode} ${contentLength || 0}b - ${userAgent} ${ip} [${duration}ms]`;
-      
+
       if (statusCode >= 500) {
         this.logger.error(logMessage);
       } else if (statusCode >= 400) {

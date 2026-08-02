@@ -1,5 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreatePassDto } from './dto/create-pass.dto';
+import { UpdatePassDto } from './dto/update-pass.dto';
 
 @Injectable()
 export class PassesService {
@@ -10,7 +17,7 @@ export class PassesService {
   findAllOptions() {
     return this.prisma.passOption.findMany({
       where: { isActive: true },
-      orderBy: { priceUsd: 'asc' }
+      orderBy: { priceUsd: 'asc' },
     });
   }
 
@@ -18,15 +25,24 @@ export class PassesService {
     return this.prisma.userPass.findMany({
       where: { userId },
       include: {
-        passOption: true
+        passOption: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   async purchasePass(userId: string, passOptionId: string) {
+    if (
+      process.env.NODE_ENV === 'production' ||
+      process.env.ALLOW_SIMULATED_PASS_PURCHASES !== 'true'
+    ) {
+      throw new ServiceUnavailableException(
+        'Pass purchasing is unavailable until a payment provider is configured',
+      );
+    }
+
     const passOption = await this.prisma.passOption.findUnique({
-      where: { id: passOptionId }
+      where: { id: passOptionId },
     });
 
     if (!passOption) {
@@ -43,7 +59,8 @@ export class PassesService {
       expiresAt.setDate(expiresAt.getDate() + passOption.validityDays);
     }
 
-    // Simulate payment success and create pass
+    // Explicitly opt-in for non-production demos. A real payment integration must
+    // create the pass only after a verified provider webhook succeeds.
     const userPass = await this.prisma.$transaction(async (tx) => {
       const pass = await tx.userPass.create({
         data: {
@@ -51,8 +68,8 @@ export class PassesService {
           passOptionId,
           remainingClasses: passOption.totalClasses,
           expiresAt,
-          isActive: true
-        }
+          isActive: true,
+        },
       });
 
       // Create a simulated successful payment
@@ -63,8 +80,8 @@ export class PassesService {
           amountUsd: passOption.priceUsd,
           status: 'SUCCEEDED',
           paymentType: 'ONLINE',
-          adminNotes: 'Simulated purchase for Class Pass'
-        }
+          adminNotes: 'Simulated purchase for Class Pass',
+        },
       });
 
       return pass;
@@ -77,11 +94,11 @@ export class PassesService {
 
   findAllAdminOptions() {
     return this.prisma.passOption.findMany({
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
-  async createOption(data: any) {
+  async createOption(data: CreatePassDto) {
     return this.prisma.passOption.create({
       data: {
         name: data.name,
@@ -89,28 +106,27 @@ export class PassesService {
         priceUsd: data.priceUsd,
         totalClasses: data.totalClasses,
         validityDays: data.validityDays,
-        isActive: data.isActive ?? true
-      }
+        isActive: data.isActive ?? true,
+      },
     });
   }
 
-  async updateOption(id: string, data: any) {
+  async updateOption(id: string, data: UpdatePassDto) {
     return this.prisma.passOption.update({
       where: { id },
-      data: {
-        name: data.name,
-        description: data.description,
-        priceUsd: data.priceUsd,
-        totalClasses: data.totalClasses,
-        validityDays: data.validityDays,
-        isActive: data.isActive
-      }
+      data,
     });
   }
 
   async deleteOption(id: string) {
-    return this.prisma.passOption.delete({
-      where: { id }
+    const option = await this.prisma.passOption.findUnique({ where: { id } });
+    if (!option) {
+      throw new NotFoundException('Pass option not found');
+    }
+
+    return this.prisma.passOption.update({
+      where: { id },
+      data: { isActive: false },
     });
   }
 }

@@ -18,7 +18,7 @@ export class EnrollmentsController {
   // Student endpoints
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.STUDENT)
+  @Roles(Role.STUDENT, Role.ADMIN, Role.SUPER_ADMIN)
   create(
     @CurrentUser('id') userId: string,
     @Body() dto: CreateEnrollmentDto,

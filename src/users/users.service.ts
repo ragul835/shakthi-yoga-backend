@@ -72,27 +72,27 @@ export class UsersService {
         updatedAt: true,
         instructorProfile: true,
         enrollments: {
-          include: { 
+          include: {
             class: { select: { name: true, type: true } },
             attendances: {
               orderBy: { sessionDate: 'desc' },
-              take: 5
-            }
+              take: 5,
+            },
           },
           orderBy: { enrolledAt: 'desc' },
           take: 10,
         },
         userPasses: {
           include: { passOption: true },
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
         },
         payments: {
           include: {
             enrollment: { include: { class: { select: { name: true } } } },
-            userPass: { include: { passOption: { select: { name: true } } } }
+            userPass: { include: { passOption: { select: { name: true } } } },
           },
           orderBy: { createdAt: 'desc' },
-          take: 10
+          take: 10,
         },
         _count: {
           select: { enrollments: true, payments: true },
@@ -176,9 +176,10 @@ export class UsersService {
       totalRegistered,
       totalAttended,
       upcoming,
-      completionRate: totalRegistered > 0
-        ? Math.round((totalAttended / totalRegistered) * 100)
-        : 0,
+      completionRate:
+        totalRegistered > 0
+          ? Math.round((totalAttended / totalRegistered) * 100)
+          : 0,
     };
   }
 }
