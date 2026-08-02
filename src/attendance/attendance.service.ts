@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MarkAttendanceDto } from './dto/attendance.dto';
+import { assertAttendanceCheckInWindow } from './attendance-time';
 
 @Injectable()
 export class AttendanceService {
@@ -37,34 +38,93 @@ export class AttendanceService {
     // Verify enrollment belongs to user
     const enrollment = await this.prisma.enrollment.findFirst({
       where: { id: enrollmentId, userId, classId },
+      include: {
+        class: {
+          select: {
+            scheduleDay: true,
+            scheduleTime: true,
+            durationMinutes: true,
+          },
+        },
+      },
     });
 
     if (!enrollment) {
       throw new Error('Enrollment not found or does not belong to user');
     }
 
-    const sessionDate = new Date();
-    // Normalize to start of day for session date
-    sessionDate.setHours(0, 0, 0, 0);
+    assertAttendanceCheckInWindow(enrollment.class);
 
-    return this.prisma.attendance.upsert({
-      where: {
-        enrollmentId_sessionDate: {
-          enrollmentId,
-          sessionDate,
+    // Always key attendance to the scheduled class date. Using the click date
+    // would allow the same meeting link to consume another pass class tomorrow.
+    const sessionDate = new Date(`${enrollment.class.scheduleDay}T00:00:00.000Z`);
+    if (Number.isNaN(sessionDate.getTime())) {
+      throw new ConflictException('Class schedule date is invalid');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const attendanceKey = { enrollmentId, sessionDate };
+      const existingAttendance = await tx.attendance.findUnique({
+        where: { enrollmentId_sessionDate: attendanceKey },
+      });
+
+      // Joining the same class repeatedly must never consume multiple credits.
+      if (existingAttendance?.attended) {
+        return existingAttendance;
+      }
+
+      const now = new Date();
+      const activePass = await tx.userPass.findFirst({
+        where: {
+          userId,
+          isActive: true,
+          OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+          AND: [
+            { OR: [{ remainingClasses: null }, { remainingClasses: { gt: 0 } }] },
+          ],
         },
-      },
-      create: {
-        enrollmentId,
-        classId,
-        sessionDate,
-        attended: true,
-        markedById: userId,
-      },
-      update: {
-        attended: true,
-        markedById: userId,
-      },
+        orderBy: [{ expiresAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
+      });
+
+      if (activePass?.remainingClasses !== null && activePass?.remainingClasses !== undefined) {
+        const deduction = await tx.userPass.updateMany({
+          where: {
+            id: activePass.id,
+            isActive: true,
+            remainingClasses: { gt: 0 },
+            OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+          },
+          data: {
+            remainingClasses: { decrement: 1 },
+            ...(activePass.remainingClasses === 1 ? { isActive: false } : {}),
+          },
+        });
+
+        // A concurrent join may have consumed the final class first. Retry the
+        // transaction so another eligible pass can be selected, if one exists.
+        if (deduction.count !== 1) {
+          throw new ConflictException(
+            'Class pass balance changed. Please try joining again.',
+          );
+        }
+      }
+
+      return tx.attendance.upsert({
+        where: { enrollmentId_sessionDate: attendanceKey },
+        create: {
+          enrollmentId,
+          classId,
+          sessionDate,
+          attended: true,
+          markedById: userId,
+          userPassId: activePass?.id,
+        },
+        update: {
+          attended: true,
+          markedById: userId,
+          userPassId: activePass?.id,
+        },
+      });
     });
   }
 

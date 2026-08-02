@@ -30,24 +30,42 @@ export class EnrollmentsService {
     // Handle makeup credit if provided
     let makeupCredit = null;
     if (dto.useMakeupCreditId) {
+      const makeupCreditCutoff = new Date();
+      makeupCreditCutoff.setDate(makeupCreditCutoff.getDate() - 30);
+
       makeupCredit = await this.prisma.attendance.findFirst({
         where: {
           id: dto.useMakeupCreditId,
           enrollment: { userId },
           attended: false,
           makeupUsed: false,
+          sessionDate: { gte: makeupCreditCutoff },
         },
       });
       if (!makeupCredit) {
-        throw new BadRequestException('Invalid or already used makeup credit');
+        throw new BadRequestException('Makeup credit is invalid, expired, or already used');
       }
     }
 
     // Determine the meeting link to give the student
-    const actualMeetingLink = yogaClass.meetingLink || 'https://zoom.us/j/mock123';
+    const actualMeetingLink = yogaClass.meetingLink;
 
-    const transactionOps: any[] = [
-      this.prisma.enrollment.create({
+    const enrollment = await this.prisma.$transaction(async (tx) => {
+      // Reserve capacity atomically. A prior read alone can overbook when two
+      // students purchase the final place at the same time.
+      const reservation = await tx.class.updateMany({
+        where: {
+          id: dto.classId,
+          status: { notIn: ['INACTIVE', 'FULL'] },
+          currentEnrollment: { lt: yogaClass.maxCapacity },
+        },
+        data: { currentEnrollment: { increment: 1 } },
+      });
+      if (reservation.count !== 1) {
+        throw new BadRequestException('Class is full');
+      }
+
+      const createdEnrollment = await tx.enrollment.create({
         data: { 
           userId, 
           classId: dto.classId, 
@@ -57,24 +75,25 @@ export class EnrollmentsService {
         include: {
           class: { select: { name: true, type: true, scheduleDay: true, scheduleTime: true } },
         },
-      }),
-      this.prisma.class.update({
-        where: { id: dto.classId },
-        data: { currentEnrollment: { increment: 1 } },
-      }),
-    ];
+      });
 
-    if (makeupCredit) {
-      transactionOps.push(
-        this.prisma.attendance.update({
-          where: { id: makeupCredit.id },
+      if (makeupCredit) {
+        const creditUse = await tx.attendance.updateMany({
+          where: {
+            id: makeupCredit.id,
+            makeupUsed: false,
+          },
           data: { makeupUsed: true },
-        })
-      );
-    }
+        });
+        if (creditUse.count !== 1) {
+          throw new BadRequestException(
+            'Makeup credit is invalid, expired, or already used',
+          );
+        }
+      }
 
-    // Create enrollment and update class count
-    const [enrollment] = await this.prisma.$transaction(transactionOps);
+      return createdEnrollment;
+    });
 
     return enrollment;
   }
@@ -93,7 +112,16 @@ export class EnrollmentsService {
               instructor: { include: { user: { select: { name: true } } } },
             },
           },
-          attendances: true,
+          // Select only fields used by the dashboard. This keeps enrollment
+          // reads compatible during a rolling deployment before newer optional
+          // attendance columns have been migrated.
+          attendances: {
+            select: {
+              id: true,
+              attended: true,
+              sessionDate: true,
+            },
+          },
         },
       }),
       this.prisma.enrollment.count({ where: { userId } }),

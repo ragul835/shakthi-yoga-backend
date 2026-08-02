@@ -72,10 +72,10 @@ enum PaymentType {
 }
 
 model User {
-  id              String          @id @default(uuid())
-  name            String
-  email           String          @unique
-  passwordHash    String          @map("password_hash")
+  id                    String          @id @default(uuid())
+  name                  String
+  email                 String          @unique
+  passwordHash          String          @map("password_hash")
   phone                 String?
   dob                   DateTime?
   experienceLevel       ExperienceLevel @default(BEGINNER) @map("experience_level")
@@ -104,20 +104,21 @@ model User {
   contactReads      ContactMessage[]   @relation("ReadBy")
   contentUpdates    SiteContent[]      @relation("UpdatedBy")
   testimonials      Testimonial[]
+  userPasses        UserPass[]
 
   @@map("users")
 }
 
 model InstructorProfile {
-  id             String  @id @default(uuid())
-  userId         String  @unique @map("user_id")
-  bio            String?
-  specialization String?
-  qualifications String?
-  yearsExperience Int?   @map("years_experience")
-  photoUrl       String? @map("photo_url")
-  isActive       Boolean @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  bio             String?
+  specialization  String?
+  qualifications  String?
+  yearsExperience Int?     @map("years_experience")
+  photoUrl        String?  @map("photo_url")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   classes Class[]
@@ -177,7 +178,8 @@ model Enrollment {
 model Payment {
   id                String        @id @default(uuid())
   userId            String        @map("user_id")
-  enrollmentId      String        @unique @map("enrollment_id")
+  enrollmentId      String?       @unique @map("enrollment_id")
+  userPassId        String?       @map("user_pass_id")
   amountUsd         Decimal       @map("amount_usd") @db.Decimal(10, 2)
   currency          String        @default("USD")
   paymentProvider   String?       @map("payment_provider")
@@ -189,9 +191,11 @@ model Payment {
   paidAt            DateTime?     @map("paid_at")
   createdAt         DateTime      @default(now()) @map("created_at")
 
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollment Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  userPass   UserPass?   @relation(fields: [userPassId], references: [id], onDelete: Cascade)
 
+  @@index([userPassId])
   @@map("payments")
 }
 
@@ -203,13 +207,16 @@ model Attendance {
   attended     Boolean  @default(false)
   makeupUsed   Boolean  @default(false) @map("makeup_used")
   markedById   String?  @map("marked_by")
+  userPassId   String?  @map("user_pass_id")
   markedAt     DateTime @default(now()) @map("marked_at")
 
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   class      Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
   markedBy   User?      @relation("MarkedBy", fields: [markedById], references: [id])
+  userPass   UserPass?  @relation(fields: [userPassId], references: [id], onDelete: SetNull)
 
   @@unique([enrollmentId, sessionDate])
+  @@index([userPassId])
   @@map("attendances")
 }
 
@@ -275,3 +282,38 @@ model ContactMessage {
   @@map("contact_messages")
 }
 
+model PassOption {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  priceUsd     Decimal  @map("price_usd") @db.Decimal(10, 2)
+  totalClasses Int?     @map("total_classes") // null if unlimited
+  validityDays Int?     @map("validity_days") // null if no expiry
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  userPasses UserPass[]
+
+  @@unique([name])
+  @@map("pass_options")
+}
+
+model UserPass {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  passOptionId     String    @map("pass_option_id")
+  remainingClasses Int?      @map("remaining_classes") // null if unlimited
+  expiresAt        DateTime? @map("expires_at") // null if no expiry
+  isActive         Boolean   @default(true) @map("is_active")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passOption PassOption @relation(fields: [passOptionId], references: [id])
+  payments   Payment[]
+  attendances Attendance[]
+
+  @@index([userId])
+  @@map("user_passes")
+}

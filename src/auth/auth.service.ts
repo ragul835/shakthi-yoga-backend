@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as nodemailer from 'nodemailer';
@@ -173,7 +173,16 @@ export class AuthService {
     const payload = { sub: user.id, hash: hashSnippet };
     
     // Token expires in 15m
-    const resetToken = await this.jwtService.signAsync(payload, { expiresIn: '15m', secret: process.env.JWT_RESET_SECRET || 'fallback_reset_secret' } as any);
+    const resetSecret = process.env.JWT_RESET_SECRET || process.env.JWT_SECRET;
+    if (!resetSecret) {
+      throw new ServiceUnavailableException(
+        'Password reset is temporarily unavailable',
+      );
+    }
+    const resetToken = await this.jwtService.signAsync(payload, {
+      expiresIn: '15m',
+      secret: resetSecret,
+    });
     
     const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',');
     const frontendUrl = frontendUrls[0].trim();
@@ -187,8 +196,13 @@ export class AuthService {
   async resetPassword(dto: ResetPasswordDto) {
     let payload;
     try {
-      payload = await this.jwtService.verifyAsync(dto.token, { secret: process.env.JWT_RESET_SECRET || 'fallback_reset_secret' } as any);
-    } catch (e) {
+      const resetSecret = process.env.JWT_RESET_SECRET || process.env.JWT_SECRET;
+      if (!resetSecret) throw new Error('Reset secret is not configured');
+      payload = await this.jwtService.verifyAsync<{ sub: string; hash: string }>(
+        dto.token,
+        { secret: resetSecret },
+      );
+    } catch {
       throw new BadRequestException('Invalid or expired reset token');
     }
     

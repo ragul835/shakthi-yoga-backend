@@ -1,9 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { winstonConfig } from './logger/winston.config';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: winstonConfig,
+  });
 
   // Global prefix
   app.setGlobalPrefix('api');
@@ -34,4 +37,4 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
   console.log(`🚀 ZenYoga API running on port ${port}`);
 }
-bootstrap();
+void bootstrap();
