@@ -1,10 +1,11 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { winstonConfig } from './logger/winston.config';
 import helmet from 'helmet';
 
 async function bootstrap() {
+  const startupLogger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule, {
     logger: winstonConfig,
   });
@@ -36,7 +37,29 @@ async function bootstrap() {
   );
 
   const port = process.env.PORT || 8000;
+  app.enableShutdownHooks();
   await app.listen(port, '0.0.0.0');
-  console.log(`🚀 ZenYoga API running on port ${port}`);
+  startupLogger.log(JSON.stringify({ event: 'application_started', port: Number(port), environment: process.env.NODE_ENV || 'development' }));
 }
-void bootstrap();
+
+const fatalLogger = new Logger('Process');
+const terminateAfterLogging = () => {
+  setTimeout(() => process.exit(1), 100);
+};
+process.on('unhandledRejection', (reason) => {
+  fatalLogger.error(JSON.stringify({
+    event: 'unhandled_rejection',
+    error: reason instanceof Error ? reason.message : 'Non-error rejection',
+  }), reason instanceof Error ? reason.stack : undefined);
+  terminateAfterLogging();
+});
+process.on('uncaughtException', (error) => {
+  fatalLogger.fatal(JSON.stringify({ event: 'uncaught_exception', error: error.message }), error.stack);
+  terminateAfterLogging();
+});
+
+void bootstrap().catch((error: unknown) => {
+  const failure = error instanceof Error ? error : new Error('Unknown bootstrap failure');
+  fatalLogger.fatal(JSON.stringify({ event: 'application_start_failed', error: failure.message }), failure.stack);
+  terminateAfterLogging();
+});

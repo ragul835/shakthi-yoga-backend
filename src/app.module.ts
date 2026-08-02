@@ -15,6 +15,7 @@ import { AdminModule } from './admin/admin.module';
 import { PassesModule } from './passes/passes.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
 import { LoggingMiddleware } from './middleware/logging.middleware';
+import { ObservabilityModule } from './observability/observability.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { LoggingMiddleware } from './middleware/logging.middleware';
     AdminModule,
     PassesModule,
     NewsletterModule,
+    ObservabilityModule,
   ],
   providers: [
     {
