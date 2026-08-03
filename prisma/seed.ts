@@ -4,6 +4,14 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
+  const environment = process.env.NODE_ENV ?? 'development';
+  if (environment !== 'development') {
+    throw new Error(
+      `Database seeding is disabled when NODE_ENV=${environment}. ` +
+        'Run seeds only against an explicitly configured development database.',
+    );
+  }
+
   const passwordHash = await bcrypt.hash('admin123', 10);
 
   const admin = await prisma.user.upsert({
@@ -41,4 +49,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
