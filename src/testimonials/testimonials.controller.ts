@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { TestimonialsService } from './testimonials.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
-import { CreateTestimonialDto, CreateAdminTestimonialDto, UpdateTestimonialStatusDto } from './dto/testimonial.dto';
+import { CreateAdminTestimonialDto, SubmitTestimonialDto, UpdateTestimonialStatusDto } from './dto/testimonial.dto';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('testimonials')
 export class TestimonialsController {
@@ -18,8 +19,12 @@ export class TestimonialsController {
   // Student submits a testimonial
   @Post()
   @UseGuards(JwtAuthGuard)
-  submitTestimonial(@Req() req: any, @Body() body: CreateTestimonialDto) {
-    return this.testimonialsService.submitTestimonial(req.user.userId, req.user.name, body);
+  submitTestimonial(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('name') studentName: string,
+    @Body() body: SubmitTestimonialDto,
+  ) {
+    return this.testimonialsService.submitTestimonial(userId, studentName, body);
   }
 
   // Admin endpoints

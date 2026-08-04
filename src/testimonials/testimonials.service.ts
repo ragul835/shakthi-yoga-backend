@@ -1,12 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateTestimonialDto, CreateAdminTestimonialDto, UpdateTestimonialStatusDto } from './dto/testimonial.dto';
+import { SubmitTestimonialDto, CreateAdminTestimonialDto, UpdateTestimonialStatusDto } from './dto/testimonial.dto';
 
 @Injectable()
 export class TestimonialsService {
   constructor(private prisma: PrismaService) {}
 
-  async submitTestimonial(userId: string, studentName: string, data: CreateTestimonialDto) {
+  async submitTestimonial(userId: string, studentName: string, data: SubmitTestimonialDto) {
     return this.prisma.testimonial.create({
       data: {
         studentName, // Use authenticated user's name

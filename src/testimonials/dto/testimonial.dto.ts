@@ -1,11 +1,7 @@
 import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { TestimonialSource, TestimonialStatus } from '@prisma/client';
 
-export class CreateTestimonialDto {
-  @IsString()
-  @IsNotEmpty()
-  studentName: string;
-
+export class SubmitTestimonialDto {
   @IsString()
   @IsNotEmpty()
   content: string;
@@ -14,6 +10,12 @@ export class CreateTestimonialDto {
   @Min(1)
   @Max(5)
   rating: number;
+}
+
+export class CreateTestimonialDto extends SubmitTestimonialDto {
+  @IsString()
+  @IsNotEmpty()
+  studentName: string;
 }
 
 export class CreateAdminTestimonialDto extends CreateTestimonialDto {
