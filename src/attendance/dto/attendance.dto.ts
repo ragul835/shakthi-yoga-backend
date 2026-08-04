@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsBoolean, IsArray, ValidateNested, IsOptional } from 'class-validator';
+import { ArrayMinSize, IsNotEmpty, IsString, IsBoolean, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class MarkAttendanceItemDto {
@@ -20,6 +20,7 @@ export class MarkAttendanceDto {
   sessionDate: string;
 
   @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => MarkAttendanceItemDto)
   records: MarkAttendanceItemDto[];

@@ -14,20 +14,12 @@ export class AttendanceController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.INSTRUCTOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   markAttendance(
     @CurrentUser('id') userId: string,
     @Body() dto: MarkAttendanceDto,
   ) {
     return this.attendanceService.markAttendance(userId, dto);
-  }
-
-  @Post('self')
-  selfMarkAttendance(
-    @CurrentUser('id') userId: string,
-    @Body() body: { enrollmentId: string; classId: string },
-  ) {
-    return this.attendanceService.selfMarkAttendance(userId, body.enrollmentId, body.classId);
   }
 
   @Get('class/:classId')
