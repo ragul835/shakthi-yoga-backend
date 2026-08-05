@@ -1,5 +1,6 @@
 import { PrismaClient, Role, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { LEGACY_SEED_ADMIN_EMAIL, SEED_ADMIN_EMAIL } from './seed-config';
 
 const prisma = new PrismaClient();
 
@@ -14,16 +15,32 @@ async function main() {
 
   const passwordHash = await bcrypt.hash('admin123', 10);
 
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@zenyoga.com' },
-    update: {},
-    create: {
-      email: 'admin@zenyoga.com',
-      name: 'Admin User',
-      passwordHash,
-      role: Role.ADMIN,
-      emailVerified: true,
-    },
+  const admin = await prisma.$transaction(async (tx) => {
+    const existingAdmin = await tx.user.findUnique({ where: { email: SEED_ADMIN_EMAIL } });
+    if (existingAdmin) {
+      return tx.user.update({
+        where: { id: existingAdmin.id },
+        data: { role: Role.ADMIN, emailVerified: true },
+      });
+    }
+
+    const legacyAdmin = await tx.user.findUnique({ where: { email: LEGACY_SEED_ADMIN_EMAIL } });
+    if (legacyAdmin) {
+      return tx.user.update({
+        where: { id: legacyAdmin.id },
+        data: { email: SEED_ADMIN_EMAIL, role: Role.ADMIN, emailVerified: true },
+      });
+    }
+
+    return tx.user.create({
+      data: {
+        email: SEED_ADMIN_EMAIL,
+        name: 'Admin User',
+        passwordHash,
+        role: Role.ADMIN,
+        emailVerified: true,
+      },
+    });
   });
 
   console.log('✅ Successfully seeded admin user:', admin.email);

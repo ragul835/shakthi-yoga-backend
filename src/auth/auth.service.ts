@@ -55,6 +55,12 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user.id, user.email, user.role);
 
+    // Account creation must remain successful if the mail provider is
+    // temporarily unavailable. The delivery failure is still visible in logs.
+    void this.sendWelcomeEmail(user.name, user.email).catch((error: unknown) => {
+      console.error('Failed to send registration welcome email:', error);
+    });
+
     return {
       user,
       ...tokens,
@@ -382,6 +388,26 @@ export class AuthService {
     if (!process.env.SMTP_HOST) {
       console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
     }
+  }
+
+  private async sendWelcomeEmail(name: string, to: string) {
+    if (!process.env.SMTP_HOST) return;
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: process.env.SMTP_PORT === '465',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    });
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim();
+    const safeName = name.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
+    const fromAddress = process.env.SMTP_USER || 'noreply@shakthiyoga.com';
+    await transporter.sendMail({
+      from: `"${process.env.SMTP_FROM_NAME || 'Shakthi Yoga'}" <${fromAddress}>`,
+      to,
+      subject: 'Welcome to Shakthi Yoga',
+      text: `Welcome to Shakthi Yoga, ${name}. Your account is ready. Explore classes at ${frontendUrl}/classes`,
+      html: `<!doctype html><html><body style="margin:0;background:#faf9f6;font-family:Arial,sans-serif;color:#2c2c2c"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#fff;border:1px solid #eae7df;border-radius:16px;overflow:hidden"><tr><td style="padding:38px;text-align:center;background:#557a5b;color:#fff"><h1 style="margin:0;font-family:Georgia,serif;font-weight:500">SHAKTHI YOGA</h1></td></tr><tr><td style="padding:40px;line-height:1.65"><h2 style="margin-top:0;font-family:Georgia,serif">Welcome, ${safeName}!</h2><p>Thank you for registering with Shakthi Yoga. Your account is ready, and we’re delighted to be part of your practice.</p><p style="text-align:center;margin:32px 0"><a href="${frontendUrl}/classes" style="display:inline-block;background:#557a5b;color:#fff;text-decoration:none;padding:14px 28px;border-radius:28px;font-weight:700">Explore Classes</a></p><p>You can sign in anytime to manage your classes, passes, receipts, and attendance.</p><p style="margin-bottom:0">Namaste,<br><strong>The Shakthi Yoga Team</strong></p></td></tr><tr><td style="padding:22px;text-align:center;background:#f4f3ed;color:#8f887c;font-size:12px">&copy; ${new Date().getFullYear()} Shakthi Yoga</td></tr></table></td></tr></table></body></html>`,
+    });
   }
 
   private async generateTokens(userId: string, email: string, role: string) {

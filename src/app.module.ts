@@ -16,11 +16,13 @@ import { PassesModule } from './passes/passes.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
 import { LoggingMiddleware } from './middleware/logging.middleware';
 import { ObservabilityModule } from './observability/observability.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: ['.env.local', '.env'],
       validate: (config: Record<string, unknown>) => {
         if (config.NODE_ENV === 'production') {
           const jwtSecret = String(config.JWT_SECRET || '');
@@ -30,6 +32,9 @@ import { ObservabilityModule } from './observability/observability.module';
           const frontendUrl = String(config.FRONTEND_URL || '');
           if (!frontendUrl.startsWith('https://')) {
             throw new Error('FRONTEND_URL must use HTTPS in production');
+          }
+          for (const key of ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'STUDIO_EMAIL']) {
+            if (!String(config[key] || '').trim()) throw new Error(`${key} is required in production`);
           }
         }
         return config;
@@ -54,6 +59,7 @@ import { ObservabilityModule } from './observability/observability.module';
     PassesModule,
     NewsletterModule,
     ObservabilityModule,
+    PaymentsModule,
   ],
   providers: [
     {

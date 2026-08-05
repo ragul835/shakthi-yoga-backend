@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
+.env.local
 *.db
 *.sqlite
 *.sqlite-journal
@@ -8,6 +9,7 @@ prisma/*.db
 prisma/*.sqlite
 *.log
 logs/
+graphify-out/
 npm-debug.log*
 yarn-error.log*
 .DS_Store

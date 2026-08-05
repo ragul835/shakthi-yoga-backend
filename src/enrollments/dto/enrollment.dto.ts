@@ -9,6 +9,10 @@ export class CreateEnrollmentDto {
   @IsOptional()
   @IsString()
   useMakeupCreditId?: string;
+
+  @IsOptional()
+  @IsString()
+  userPassId?: string;
 }
 
 export class UpdateEnrollmentDto {

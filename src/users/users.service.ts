@@ -87,7 +87,16 @@ export class UsersService {
           orderBy: { createdAt: 'desc' },
         },
         payments: {
-          include: {
+          select: {
+            id: true,
+            amountUsd: true,
+            currency: true,
+            status: true,
+            receiptUrl: true,
+            paymentType: true,
+            paidAt: true,
+            verifiedAt: true,
+            createdAt: true,
             enrollment: { include: { class: { select: { name: true } } } },
             userPass: { include: { passOption: { select: { name: true } } } },
           },

@@ -31,6 +31,18 @@ services:
         value: 7d
       - key: FRONTEND_URL
         value: https://shakthi-yoga-frontend.onrender.com
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 465
+      - key: SMTP_USER
+        value: raji.saran2010@gmail.com
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: Shakthi Yoga
+      - key: STUDIO_EMAIL
+        value: raji.saran2010@gmail.com
       - key: CLASS_TIME_ZONE
         value: America/Los_Angeles
       - key: ATTENDANCE_CHECK_IN_BEFORE_MINUTES

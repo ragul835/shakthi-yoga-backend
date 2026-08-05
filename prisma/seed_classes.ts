@@ -1,11 +1,12 @@
 import { PrismaClient, Role, ExperienceLevel, ClassStatus, ClassType, AgeGroup } from '@prisma/client';
+import { SEED_ADMIN_EMAIL } from './seed-config';
 
 const prisma = new PrismaClient();
 
 async function main() {
   // Get admin user to be the instructor
   let instructorUser = await prisma.user.findFirst({
-    where: { email: 'admin@zenyoga.com' },
+    where: { email: SEED_ADMIN_EMAIL },
     include: { instructorProfile: true }
   });
 

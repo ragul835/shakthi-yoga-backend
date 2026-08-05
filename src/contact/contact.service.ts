@@ -32,7 +32,12 @@ export class ContactService {
     });
 
     const fromAddress = process.env.SMTP_USER || 'noreply@shakthiyoga.com';
-    const adminEmail = process.env.SMTP_USER; // Send notification to the SMTP user
+    const adminEmail = process.env.STUDIO_EMAIL || process.env.SMTP_USER;
+    const escapeHtml = (value: string) => value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
+    const safeName = escapeHtml(dto.name);
+    const safeEmail = escapeHtml(dto.email);
+    const safeSubject = escapeHtml(dto.subject);
+    const safeMessage = escapeHtml(dto.message).replace(/\r?\n/g, '<br>');
 
     // Base styles for both templates
     const emailStyles = `
@@ -56,7 +61,7 @@ export class ContactService {
         from: `"Shakthi Yoga Website" <${fromAddress}>`,
         to: adminEmail,
         replyTo: dto.email,
-        subject: `New Contact Request: ${dto.subject}`,
+        subject: `New Contact Request: ${dto.subject.replace(/[\r\n]/g, ' ')}`,
         html: `
           <!DOCTYPE html>
           <html>
@@ -76,20 +81,20 @@ export class ContactService {
                 <div class="data-box">
                   <div class="data-row">
                     <span class="data-label">Name:</span> 
-                    <span class="data-value">${dto.name}</span>
+                    <span class="data-value">${safeName}</span>
                   </div>
                   <div class="data-row">
                     <span class="data-label">Email:</span> 
-                    <span class="data-value"><a href="mailto:${dto.email}" style="color: #557A5B;">${dto.email}</a></span>
+                    <span class="data-value"><a href="mailto:${safeEmail}" style="color: #557A5B;">${safeEmail}</a></span>
                   </div>
                   
                   <div style="margin-top: 24px; font-weight: 600; color: #2C2C2C;">Message:</div>
                   <div class="message-box">
-                    ${dto.message.replace(/\n/g, '<br/>')}
+                    ${safeMessage}
                   </div>
                 </div>
                 
-                <p style="font-size: 14px; margin-bottom: 0;"><em>Reply directly to this email to respond to ${dto.name}.</em></p>
+                <p style="font-size: 14px; margin-bottom: 0;"><em>Subject: ${safeSubject}. Reply directly to this email to respond to ${safeName}.</em></p>
               </div>
               <div class="footer">
                 <p style="margin: 0;">Automated notification from Shakthi Yoga Website</p>
@@ -120,7 +125,7 @@ export class ContactService {
             </div>
             <div class="content">
               <h2 style="color: #2C2C2C; font-size: 22px; margin-top: 0; font-family: Georgia, serif;">Thank you for reaching out!</h2>
-              <p>Hi ${dto.name},</p>
+              <p>Hi ${safeName},</p>
               <p>We've successfully received your message. Thank you for your interest in Shakthi Yoga.</p>
               
               <div class="data-box" style="text-align: center; padding: 32px 20px;">

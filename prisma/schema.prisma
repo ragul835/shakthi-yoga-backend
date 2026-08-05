@@ -57,16 +57,16 @@ enum NewsletterStatus {
 }
 
 model NewsletterSubscriber {
-  id             String           @id @default(uuid())
-  email          String           @unique
-  status         NewsletterStatus @default(PENDING)
-  confirmToken   String?          @unique @map("confirm_token")
-  unsubscribeToken String         @unique @map("unsubscribe_token")
-  consentedAt    DateTime         @default(now()) @map("consented_at")
-  confirmedAt    DateTime?        @map("confirmed_at")
-  unsubscribedAt DateTime?        @map("unsubscribed_at")
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  id               String           @id @default(uuid())
+  email            String           @unique
+  status           NewsletterStatus @default(PENDING)
+  confirmToken     String?          @unique @map("confirm_token")
+  unsubscribeToken String           @unique @map("unsubscribe_token")
+  consentedAt      DateTime         @default(now()) @map("consented_at")
+  confirmedAt      DateTime?        @map("confirmed_at")
+  unsubscribedAt   DateTime?        @map("unsubscribed_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
   @@map("newsletter_subscribers")
 }
@@ -177,22 +177,27 @@ model Class {
 }
 
 model Enrollment {
-  id          String           @id @default(uuid())
-  userId      String           @map("user_id")
-  classId     String           @map("class_id")
-  status      EnrollmentStatus @default(PENDING)
-  meetingLink String?          @map("meeting_link")
-  adminNotes  String?          @map("admin_notes")
-  enrolledAt  DateTime         @default(now()) @map("enrolled_at")
-  approvedAt  DateTime?        @map("approved_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
+  id             String           @id @default(uuid())
+  userId         String           @map("user_id")
+  classId        String           @map("class_id")
+  userPassId     String?          @map("user_pass_id")
+  makeupCreditId String?          @map("makeup_credit_id")
+  status         EnrollmentStatus @default(PENDING)
+  meetingLink    String?          @map("meeting_link")
+  adminNotes     String?          @map("admin_notes")
+  enrolledAt     DateTime         @default(now()) @map("enrolled_at")
+  approvedAt     DateTime?        @map("approved_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   class       Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  userPass    UserPass?    @relation(fields: [userPassId], references: [id], onDelete: SetNull)
   payment     Payment?
   attendances Attendance[]
 
   @@unique([userId, classId])
+  @@index([userPassId])
+  @@index([makeupCreditId])
   @@map("enrollments")
 }
 
@@ -207,6 +212,10 @@ model Payment {
   providerPaymentId String?       @map("provider_payment_id")
   status            PaymentStatus @default(PENDING)
   receiptUrl        String?       @map("receipt_url")
+  referenceText     String?       @map("reference_text")
+  screenshotData    Bytes?        @map("screenshot_data")
+  screenshotMime    String?       @map("screenshot_mime")
+  verifiedAt        DateTime?     @map("verified_at")
   paymentType       PaymentType   @default(MANUAL) @map("payment_type")
   adminNotes        String?       @map("admin_notes")
   paidAt            DateTime?     @map("paid_at")
@@ -239,6 +248,16 @@ model Attendance {
   @@unique([enrollmentId, sessionDate])
   @@index([userPassId])
   @@map("attendances")
+}
+
+model AttendanceSession {
+  id          String   @id @default(uuid())
+  classId     String   @map("class_id")
+  sessionDate DateTime @map("session_date")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([classId, sessionDate])
+  @@map("attendance_sessions")
 }
 
 model Testimonial {
@@ -330,10 +349,11 @@ model UserPass {
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  passOption PassOption @relation(fields: [passOptionId], references: [id])
-  payments   Payment[]
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passOption  PassOption   @relation(fields: [passOptionId], references: [id])
+  payments    Payment[]
   attendances Attendance[]
+  enrollments Enrollment[]
 
   @@index([userId])
   @@map("user_passes")
