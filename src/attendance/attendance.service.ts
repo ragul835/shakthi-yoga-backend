@@ -36,7 +36,12 @@ export class AttendanceService {
 
           const enrollments = await tx.enrollment.findMany({
             where: { id: { in: enrollmentIds }, classId: dto.classId },
-            select: { id: true, userId: true, userPassId: true },
+            select: {
+              id: true,
+              userId: true,
+              userPassId: true,
+              makeupCreditId: true,
+            },
           });
           if (enrollments.length !== enrollmentIds.length) {
             throw new BadRequestException(
@@ -53,15 +58,49 @@ export class AttendanceService {
               enrollment.userPassId,
             ]),
           );
+          const enrollmentMakeupCredits = new Map(
+            enrollments.map((enrollment) => [
+              enrollment.id,
+              enrollment.makeupCreditId,
+            ]),
+          );
+          const makeupCreditIds = enrollments.flatMap((enrollment) =>
+            enrollment.makeupCreditId ? [enrollment.makeupCreditId] : [],
+          );
+          const sourceMakeupCredits = makeupCreditIds.length
+            ? await tx.attendance.findMany({
+                where: { id: { in: makeupCreditIds } },
+                select: { id: true, sessionDate: true, userPassId: true },
+              })
+            : [];
+          const sourceMakeupCreditsById = new Map(
+            sourceMakeupCredits.map((credit) => [credit.id, credit]),
+          );
           const savedAttendance = [];
 
           for (const record of dto.records) {
             const reservedPassId =
               enrollmentPasses.get(record.enrollmentId) ?? null;
-            let userPassId = reservedPassId;
+            const makeupCreditId =
+              enrollmentMakeupCredits.get(record.enrollmentId) ?? null;
+            const sourceMakeupCredit = makeupCreditId
+              ? sourceMakeupCreditsById.get(makeupCreditId)
+              : null;
+            const isSameMakeupMonth = Boolean(
+              sourceMakeupCredit &&
+              sourceMakeupCredit.sessionDate.getUTCFullYear() ===
+                sessionDate.getUTCFullYear() &&
+              sourceMakeupCredit.sessionDate.getUTCMonth() ===
+                sessionDate.getUTCMonth(),
+            );
+            let userPassId = isSameMakeupMonth
+              ? (sourceMakeupCredit?.userPassId ?? null)
+              : reservedPassId;
 
             // A transition to Present consumes one eligible class exactly once.
-            if (record.attended && !reservedPassId) {
+            // Makeup classes have already consumed their source credit and must
+            // never consume another pass class.
+            if (record.attended && !reservedPassId && !makeupCreditId) {
               const userId = enrollmentUsers.get(record.enrollmentId)!;
               const now = new Date();
               const activePass = await tx.userPass.findFirst({
@@ -158,6 +197,9 @@ export class AttendanceService {
       where: { enrollment: { userId } },
       include: {
         class: { select: { id: true, name: true, type: true } },
+        enrollment: {
+          select: { userPassId: true, makeupCreditId: true },
+        },
       },
       orderBy: { sessionDate: 'desc' },
     });

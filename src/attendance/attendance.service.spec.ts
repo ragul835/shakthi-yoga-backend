@@ -33,6 +33,7 @@ describe('AttendanceService admin marking', () => {
       id: args.data.enrollmentId,
       ...args.data,
     }));
+    tx.attendance.findMany.mockResolvedValue([]);
     tx.userPass.findFirst.mockResolvedValue(null);
     tx.userPass.updateMany.mockResolvedValue({ count: 1 });
   });
@@ -123,6 +124,66 @@ describe('AttendanceService admin marking', () => {
         data: expect.objectContaining({ userPassId: 'reserved-pass' }),
       }),
     );
+  });
+
+  it('keeps a missed makeup class eligible through the original calendar month', async () => {
+    tx.enrollment.findMany.mockResolvedValue([
+      {
+        id: 'makeup-student',
+        userId: 'student',
+        userPassId: null,
+        makeupCreditId: 'original-absence',
+      },
+    ]);
+    tx.attendance.findMany.mockResolvedValue([
+      {
+        id: 'original-absence',
+        sessionDate: new Date('2026-08-05T00:00:00.000Z'),
+        userPassId: 'original-pass',
+      },
+    ]);
+
+    await service.markAttendance('admin', {
+      classId: 'class',
+      sessionDate: '2026-08-20',
+      records: [{ enrollmentId: 'makeup-student', attended: false }],
+    });
+
+    expect(tx.attendance.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          attended: false,
+          userPassId: 'original-pass',
+        }),
+      }),
+    );
+  });
+
+  it('does not consume another pass when the student attends a makeup class', async () => {
+    tx.enrollment.findMany.mockResolvedValue([
+      {
+        id: 'makeup-student',
+        userId: 'student',
+        userPassId: null,
+        makeupCreditId: 'original-absence',
+      },
+    ]);
+    tx.attendance.findMany.mockResolvedValue([
+      {
+        id: 'original-absence',
+        sessionDate: new Date('2026-08-05T00:00:00.000Z'),
+        userPassId: 'original-pass',
+      },
+    ]);
+
+    await service.markAttendance('admin', {
+      classId: 'class',
+      sessionDate: '2026-08-20',
+      records: [{ enrollmentId: 'makeup-student', attended: true }],
+    });
+
+    expect(tx.userPass.findFirst).not.toHaveBeenCalled();
+    expect(tx.userPass.updateMany).not.toHaveBeenCalled();
   });
 
   it('deactivates a finite pass when Present consumes its final class', async () => {

@@ -143,18 +143,15 @@ export class EnrollmentsService {
           }
         }
 
-        const requiresMakeupApproval = Boolean(dto.useMakeupCreditId);
         const createdEnrollment = await tx.enrollment.create({
           data: {
             userId,
             classId: dto.classId,
-            status: requiresMakeupApproval
-              ? EnrollmentStatus.PENDING
-              : EnrollmentStatus.APPROVED,
-            meetingLink: requiresMakeupApproval ? null : actualMeetingLink,
+            status: EnrollmentStatus.APPROVED,
+            meetingLink: actualMeetingLink,
             userPassId: selectedPass?.id,
             makeupCreditId: dto.useMakeupCreditId,
-            approvedAt: requiresMakeupApproval ? null : new Date(),
+            approvedAt: new Date(),
           },
           include: {
             class: {
