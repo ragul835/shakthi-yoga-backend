@@ -39,6 +39,10 @@ export class CreateInstructorDto {
   @IsOptional()
   @IsUrl({ protocols: ['https'], require_protocol: true })
   photoUrl?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
 }
 
 export class UpdateInstructorDto {
@@ -71,4 +75,8 @@ export class UpdateInstructorDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
 }

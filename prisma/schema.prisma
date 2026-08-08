@@ -138,7 +138,10 @@ model InstructorProfile {
   qualifications  String?
   yearsExperience Int?     @map("years_experience")
   photoUrl        String?  @map("photo_url")
+  photoData       Bytes?   @map("photo_data")
+  photoMime       String?  @map("photo_mime")
   isActive        Boolean  @default(true) @map("is_active")
+  isFeatured      Boolean  @default(false) @map("is_featured")
   createdAt       DateTime @default(now()) @map("created_at")
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)

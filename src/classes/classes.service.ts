@@ -15,6 +15,7 @@ export class ClassesService {
       },
       include: {
         instructor: {
+          omit: { photoData: true, photoMime: true },
           include: { user: { select: { name: true } } },
         },
       },
@@ -56,6 +57,7 @@ export class ClassesService {
         orderBy: { createdAt: 'desc' },
         include: {
           instructor: {
+            omit: { photoData: true, photoMime: true },
             include: { user: { select: { name: true, profilePhotoUrl: true } } },
           },
           _count: { select: { enrollments: true } },
@@ -101,6 +103,7 @@ export class ClassesService {
         orderBy: { createdAt: 'desc' },
         include: {
           instructor: {
+            omit: { photoData: true, photoMime: true },
             include: { user: { select: { name: true, profilePhotoUrl: true } } },
           },
         },
@@ -119,6 +122,7 @@ export class ClassesService {
       where: { id },
       include: {
         instructor: {
+          omit: { photoData: true, photoMime: true },
           include: { user: { select: { name: true, profilePhotoUrl: true } } },
         },
         _count: { select: { enrollments: true } },
@@ -139,6 +143,7 @@ export class ClassesService {
       data: dto,
       include: {
         instructor: {
+          omit: { photoData: true, photoMime: true },
           include: { user: { select: { name: true } } },
         },
       },
@@ -158,6 +163,7 @@ export class ClassesService {
       orderBy: { currentEnrollment: 'desc' },
       include: {
         instructor: {
+          omit: { photoData: true, photoMime: true },
           include: { user: { select: { name: true, profilePhotoUrl: true } } },
         },
       },

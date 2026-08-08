@@ -203,7 +203,7 @@ export class EnrollmentsService {
         include: {
           class: {
             include: {
-              instructor: { include: { user: { select: { name: true } } } },
+              instructor: { omit: { photoData: true, photoMime: true }, include: { user: { select: { name: true } } } },
             },
           },
           // Select only fields used by the dashboard. This keeps enrollment
@@ -302,7 +302,7 @@ export class EnrollmentsService {
         user: { select: { id: true, name: true, email: true } },
         class: {
           include: {
-            instructor: { include: { user: { select: { name: true } } } },
+            instructor: { omit: { photoData: true, photoMime: true }, include: { user: { select: { name: true } } } },
           },
         },
         payment: true,
@@ -442,7 +442,7 @@ export class EnrollmentsService {
       include: {
         class: {
           include: {
-            instructor: { include: { user: { select: { name: true } } } },
+            instructor: { omit: { photoData: true, photoMime: true }, include: { user: { select: { name: true } } } },
           },
         },
       },

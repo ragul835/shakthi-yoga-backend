@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateContactDto } from './dto/contact.dto';
+import { CreateContactDto, ReplyToContactDto } from './dto/contact.dto';
 
 @Injectable()
 export class ContactService {
@@ -171,6 +171,53 @@ export class ContactService {
       where: { id },
       data: { isRead: true, readById },
     });
+  }
+
+  async reply(id: string, dto: ReplyToContactDto, repliedById: string) {
+    const original = await this.prisma.contactMessage.findUnique({ where: { id } });
+    if (!original) throw new NotFoundException('Message not found');
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      throw new ServiceUnavailableException('Email delivery is not configured');
+    }
+
+    const subject = dto.subject.trim().replace(/[\r\n]+/g, ' ');
+    const message = dto.message.trim();
+    const escapeHtml = (value: string) => value.replace(
+      /[&<>"']/g,
+      character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!,
+    );
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT || 587),
+      secure: process.env.SMTP_PORT === '465',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    });
+    const fromName = process.env.SMTP_FROM_NAME || 'Shakthi Yoga';
+    const fromAddress = process.env.SMTP_USER;
+    const safeName = escapeHtml(original.name);
+    const safeMessage = escapeHtml(message).replace(/\r?\n/g, '<br>');
+
+    await transporter.sendMail({
+      from: `"${fromName.replace(/[\r\n"]/g, '')}" <${fromAddress}>`,
+      to: original.email,
+      replyTo: process.env.STUDIO_EMAIL || fromAddress,
+      subject,
+      text: `Hi ${original.name},\n\n${message}\n\nNamaste,\nThe Shakthi Yoga Team`,
+      html: `<!doctype html>
+        <html><body style="margin:0;background:#faf9f6;font-family:Arial,sans-serif;color:#2c2c2c">
+          <div style="max-width:600px;margin:32px auto;background:#fff;border:1px solid #eae7df;border-radius:16px;overflow:hidden">
+            <div style="padding:30px 24px;background:#557a5b;color:#fff;text-align:center"><h1 style="margin:0;font:500 26px Georgia,serif">SHAKTHI YOGA</h1></div>
+            <div style="padding:32px;line-height:1.65"><p>Hi ${safeName},</p><div style="white-space:normal">${safeMessage}</div><p style="margin-top:28px">Namaste,<br><strong>The Shakthi Yoga Team</strong></p></div>
+          </div>
+        </body></html>`,
+    });
+
+    await this.prisma.contactMessage.update({
+      where: { id },
+      data: { isRead: true, readById: repliedById },
+    });
+
+    return { message: 'Reply sent successfully', sentAt: new Date().toISOString() };
   }
 
   async deleteMessage(id: string) {

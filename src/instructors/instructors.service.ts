@@ -4,6 +4,8 @@ import { CreateInstructorDto, UpdateInstructorDto } from './dto/instructor.dto';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
+export type InstructorPhotoUpload = { buffer: Buffer; mimetype: string };
+
 @Injectable()
 export class InstructorsService {
   constructor(private prisma: PrismaService) {}
@@ -26,8 +28,16 @@ export class InstructorsService {
     } else if (!resolvedUserId) {
       throw new BadRequestException('Provide either a userId or name+email+password to create an instructor');
     } else {
-      // Make sure the existing user is promoted to INSTRUCTOR role
-      await this.prisma.user.update({ where: { id: resolvedUserId }, data: { role: Role.INSTRUCTOR } });
+      // Admins can also teach. Never demote an administrative account when an
+      // instructor profile is attached to it.
+      const existingUser = await this.prisma.user.findUnique({
+        where: { id: resolvedUserId },
+        select: { role: true },
+      });
+      if (!existingUser) throw new NotFoundException('User not found');
+      if (existingUser.role !== Role.ADMIN && existingUser.role !== Role.SUPER_ADMIN) {
+        await this.prisma.user.update({ where: { id: resolvedUserId }, data: { role: Role.INSTRUCTOR } });
+      }
     }
 
     const existing = await this.prisma.instructorProfile.findUnique({ where: { userId: resolvedUserId } });
@@ -40,19 +50,25 @@ export class InstructorsService {
   }
 
   async findAll() {
-    return this.prisma.instructorProfile.findMany({
+    const instructors = await this.prisma.instructorProfile.findMany({
       where: { isActive: true },
+      omit: { photoData: true },
       include: {
         user: { select: { id: true, name: true, email: true, profilePhotoUrl: true } },
         _count: { select: { classes: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
+    return instructors.map(({ photoMime, ...instructor }) => ({
+      ...instructor,
+      photoUrl: photoMime ? `/instructors/${instructor.id}/photo` : instructor.photoUrl,
+    }));
   }
 
   async findOne(id: string) {
     const instructor = await this.prisma.instructorProfile.findUnique({
       where: { id },
+      omit: { photoData: true },
       include: {
         user: { select: { id: true, name: true, email: true, profilePhotoUrl: true } },
         classes: {
@@ -62,16 +78,48 @@ export class InstructorsService {
       },
     });
     if (!instructor) throw new NotFoundException('Instructor not found');
-    return instructor;
+    const { photoMime, ...result } = instructor;
+    return { ...result, photoUrl: photoMime ? `/instructors/${result.id}/photo` : result.photoUrl };
   }
 
   async findPublic() {
-    return this.prisma.instructorProfile.findMany({
+    const instructors = await this.prisma.instructorProfile.findMany({
       where: { isActive: true },
+      omit: { photoData: true },
       include: {
         user: { select: { name: true, profilePhotoUrl: true } },
       },
     });
+    return instructors.map(({ photoMime, ...instructor }) => ({
+      ...instructor,
+      photoUrl: photoMime ? `/instructors/${instructor.id}/photo` : instructor.photoUrl,
+    }));
+  }
+
+  async getPhoto(id: string) {
+    const instructor = await this.prisma.instructorProfile.findUnique({
+      where: { id },
+      select: { photoData: true, photoMime: true },
+    });
+    if (!instructor?.photoData || !instructor.photoMime) throw new NotFoundException('Instructor photo not found');
+    return { data: instructor.photoData, mime: instructor.photoMime };
+  }
+
+  async setPhoto(id: string, photo: InstructorPhotoUpload) {
+    await this.findOne(id);
+    const bytes = photo.buffer;
+    const isJpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    const isPng = bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    const isWebp = bytes.length >= 12 && bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WEBP';
+    const valid = (photo.mimetype === 'image/jpeg' && isJpeg) || (photo.mimetype === 'image/png' && isPng) || (photo.mimetype === 'image/webp' && isWebp);
+    if (!valid) throw new BadRequestException('Photo content does not match its file type');
+    const storedBytes = Uint8Array.from(bytes);
+
+    await this.prisma.instructorProfile.update({
+      where: { id },
+      data: { photoData: storedBytes, photoMime: photo.mimetype, photoUrl: null },
+    });
+    return { message: 'Instructor photo uploaded successfully', photoPath: `/instructors/${id}/photo` };
   }
 
   async update(id: string, dto: UpdateInstructorDto) {
@@ -95,7 +143,10 @@ export class InstructorsService {
 
   async remove(id: string) {
     await this.findOne(id);
-    await this.prisma.instructorProfile.delete({ where: { id } });
-    return { message: 'Instructor profile deleted' };
+    await this.prisma.instructorProfile.update({
+      where: { id },
+      data: { isActive: false },
+    });
+    return { message: 'Instructor archived successfully' };
   }
 }
